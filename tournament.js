@@ -57,7 +57,7 @@ class Tournament {
 
     }
 
-    sort_players(order) {
+    sort_players(order, reverse=false) {
         // sorts players by the given attribute
         if (order == 'name') {
             this.players.sort(function(a, b) {
@@ -69,26 +69,51 @@ class Tournament {
             return 0;
           })
         } else if (order == 'points') {
-            // sorts by points_total, highest to lowest
-            this.players.sort(function(a, b) {
-                if (a.points_total > b.points_total) return -1;
-                if (a.points_total < b.points_total) return 1;
-                return 0;
-            })
+            if (reverse) {
+                // sorts by points_total, lowest to highest
+                this.players.sort(function(b, a) {
+                    if (a.points_total > b.points_total) return -1;
+                    if (a.points_total < b.points_total) return 1;
+                    return 0;
+                })
+            } else {
+                // sorts by points_total, highest to lowest
+                this.players.sort(function(a, b) {
+                    if (a.points_total > b.points_total) return -1;
+                    if (a.points_total < b.points_total) return 1;
+                    return 0;
+                })
+            }
         } else if (order == 'oppscore') {
-            // sort by oppscore
-            this.players.sort(function(a, b) {
-                if (a.points_total > b.points_total) return -1;
-                if (a.points_total < b.points_total) return 1;
-                if (a.omw > b.omw) return -1;
-                if (a.omw < b.omw) return 1;
-                if (a.pgw > b.pgw) return -1;
-                if (a.pgw < b.pgw) return 1;
-                if (a.ogw > b.ogw) return -1;
-                if (a.ogw < b.ogw) return 1;
+            if (reverse) {
+                // sort by oppscore
+                this.players.sort(function(b, a) {
+                    if (a.points_total > b.points_total) return -1;
+                    if (a.points_total < b.points_total) return 1;
+                    if (a.omw > b.omw) return -1;
+                    if (a.omw < b.omw) return 1;
+                    if (a.pgw > b.pgw) return -1;
+                    if (a.pgw < b.pgw) return 1;
+                    if (a.ogw > b.ogw) return -1;
+                    if (a.ogw < b.ogw) return 1;
 
-                return 0;
-            })
+                    return 0;
+                })
+            } else {
+                // sort by oppscore
+                this.players.sort(function(a, b) {
+                    if (a.points_total > b.points_total) return -1;
+                    if (a.points_total < b.points_total) return 1;
+                    if (a.omw > b.omw) return -1;
+                    if (a.omw < b.omw) return 1;
+                    if (a.pgw > b.pgw) return -1;
+                    if (a.pgw < b.pgw) return 1;
+                    if (a.ogw > b.ogw) return -1;
+                    if (a.ogw < b.ogw) return 1;
+
+                    return 0;
+                })
+            }
         }
     }
 
@@ -171,7 +196,7 @@ class Tournament {
                     // within same points
                     while (this.players.length > 1) {
                         shuffle(this.players);
-                        this.sort_players('points');
+                        this.sort_players('points', true);
                         player1 = this.players.pop(0);
                         let index = 0;
                         while (player1.opponents.includes(this.players[index])) {
@@ -489,7 +514,7 @@ function simulate_round(tournament) {
 
 let event = new Tournament();
 event.starting_table = 10;
-event.players = generate_random_players(13);
+event.players = generate_random_players(27);
 event.calculate_rounds();
 
 for (let i = 0; i < event.no_of_rounds; i++) {
