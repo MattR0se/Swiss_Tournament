@@ -13,7 +13,6 @@ to do list:
 import random
 import pickle
 import datetime
-import copy
 from os import path, makedirs
 from math import log, ceil
 from prettytable import PrettyTable
@@ -43,7 +42,6 @@ class Player():
         self.OGW = 0
         
         self.opponents = []
-  
     
      
 class tournament():
@@ -69,7 +67,8 @@ class tournament():
         # get time for tournament ID
         self.tournament_id = str(datetime.datetime.now().strftime('%Y%m%d_%H%M%S'))
         self.date = str(datetime.datetime.now().strftime('%Y/%m/%d'))
-      
+        
+        self.doubles = []
         
     def setup_players(self):          
         self.no_of_players = int(input('How many players?  '))
@@ -193,10 +192,12 @@ class tournament():
                     while len(self.players) > 1:
                         player1 = self.players.pop(0)
                         offset = 0
-                        while (self.players[offset] in player1.opponents):
-                            offset += 1
-                        player2 = self.players.pop(offset)
-
+                        try:
+                            while (self.players[offset] in player1.opponents):
+                                offset += 1
+                            player2 = self.players.pop(offset)
+                        except:
+                            player2 = self.players.pop(0)
                         self.pairings.append([player1, player2])
                         player1.table_number = table + self.starting_table
                         player2.table_number = table + self.starting_table
@@ -235,11 +236,6 @@ class tournament():
              if list_in_list([pairing[1]], pairing[0].opponents):
                  return False
          return True
-    
-    
-    def give_bye(self, player):
-        player.matches_won += 1
-        player.games_won += 2
     
     
     def enter_result(self, table, result):
@@ -433,6 +429,14 @@ def generate_random_players(number):
 
 def simulate_round(tournament):
     tournament.new_round()
+    
+    # check for doubles
+    for player in tournament.players:
+        for i in range(len(player.opponents) - 1):
+            if player.opponents[i + 1] == player.opponents[i]:
+                tournament.doubles.append(player.name)
+    
+    
     tournament.print_pairings()
     
     random_results = [
@@ -460,7 +464,6 @@ def simulate_tournament(no_of_players):
     event = tournament()
     event.dci_required = False
     event.no_of_players = no_of_players
-    #event.starting_table = 24
     event.players = generate_random_players(no_of_players)
 
     event.calculate_rounds()
@@ -479,5 +482,11 @@ def simulate_tournament(no_of_players):
 
     return event
 
-event = simulate_tournament(9)
+hits = 0
 
+for i in range(1000000):
+    event = simulate_tournament(9)
+    if event.doubles:
+        hits += len(event.doubles)
+
+print('doubles:', hits)
