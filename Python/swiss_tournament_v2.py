@@ -65,10 +65,11 @@ class tournament():
         self.dci_required = True
         self.generated_IDs = []
         # get time for tournament ID
-        self.tournament_id = str(datetime.datetime.now().strftime('%Y%m%d_%H%M%S'))
+        self.tournament_id = str(datetime.datetime.now().strftime('%Y%m%d_%H%M%S%f'))
         self.date = str(datetime.datetime.now().strftime('%Y/%m/%d'))
         
         self.doubles = []
+        self.rounds = []
         
     def setup_players(self):          
         self.no_of_players = int(input('How many players?  '))
@@ -229,6 +230,16 @@ class tournament():
                     pair[1].opponents.append(pair[0])             
                 
                 self.results_entered = []
+        if self.pairings:
+            strings = []
+            for pair in self.pairings:
+                pl1 = pair[0]
+                pl2 = pair[1]
+                string = '{0}: {1} VS. {2}: {3}'.format(pl1.name, pl1.points_total, 
+                          pl2.name, pl2.points_total)
+                strings.append(string)
+            self.rounds.append(strings)
+                
                 
                 
     def check_pairings(self):
@@ -383,11 +394,10 @@ class tournament():
         with open(path.join(saves_dir, filename), 'wb') as file:
             pickle.dump(self, file)
             
-    def load_tournament(self, id_nr):
+    def load_tournament(self, filename):
         try:
             dir_ = path.dirname('__file__')
             saves_dir = path.join(dir_, 'tournament save files')
-            filename = 'tournament_' + id_nr + '.txt'
             with open(path.join(saves_dir, filename), 'rb') as file:
                 return pickle.load(file)
         except:
@@ -433,7 +443,7 @@ def simulate_round(tournament):
     # check for doubles
     for player in tournament.players:
         for i in range(len(player.opponents) - 1):
-            if player.opponents[i + 1] == player.opponents[i]:
+            if player.opponents[i + 1] == player.opponents[i] and player.opponents[i + 1].name != 'BYE':
                 tournament.doubles.append(player.name)
     
     
@@ -482,11 +492,28 @@ def simulate_tournament(no_of_players):
 
     return event
 
-hits = 0
 
-for i in range(1000000):
-    event = simulate_tournament(9)
-    if event.doubles:
-        hits += len(event.doubles)
+def test(runs):
+    hits = 0
+    for i in range(runs):
+        event = simulate_tournament(9)
+        if event.doubles:
+            hits += len(event.doubles)
+            event.save_tournament()
+    
+    print('doubles:', hits)
 
-print('doubles:', hits)
+try:
+    event = tournament()
+    event = event.load_tournament('tournament_20180609_175753444537.txt')
+    
+    for i in range(len(event.rounds)):
+        print('Round {}'.format(i + 1))
+        for pair in event.rounds[i]:
+            print(pair)
+    for player in event.players:
+        print('\n', player.name, 'spielte gegen')
+        for opp in player.opponents:
+            print(opp.name)
+except:
+    print('whoops')
