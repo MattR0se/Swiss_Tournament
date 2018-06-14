@@ -33,6 +33,7 @@ class Player():
         self.games_won = 0
         self.games_played = 0
         self.games_drawn = 0
+        self.id = 0
         # tiebreakers
         # MWP = own Match Win %; PGW = own Game Win %
         # OMW = opponents' match win %; OGW = opponents' Game Win %
@@ -61,8 +62,6 @@ class tournament():
 
         
         # initial setting
-        #self.dci_required = input('DCI number required? y/n:  ')
-        #if self.dci_required == 'y':
         self.dci_required = True
         self.generated_IDs = []
         # get time for tournament ID
@@ -72,36 +71,18 @@ class tournament():
         self.doubles = []
         self.rounds = []
         
-    def setup_players(self):          
-        self.no_of_players = int(input('How many players?  '))
         
-        for i in range(self.no_of_players):
-            this_player = Player('', 0)
-            name_exists = True
-            while name_exists:
-                name = input('Name of player {}: '.format(i + 1))
-                if not self.players:
-                    name_exists = False
-                for player in self.players:
-                    if player.name == name:
-                        name_exists = True
-                        print('--- WARNING: Name already exists! ---')
-                        break
-                    else:
-                        name_exists = False
-            this_player.name = name
-            if self.dci_required:
-                dci = int(input('DCI-Nr. of player {}: '.format(i + 1)))
-                this_player.dci = dci
-            else:
-                while True:
-                    dci = random.randint(0, 9999999999)
-                    if not dci in self.generated_IDs:
-                        this_player.dci = dci
-                        self.generated_IDs.append(dci)
-                        break
-            self.players.append(this_player)
-    
+    def add_player(self, name, dci=0):
+        player = Player(name, dci)
+        self.players.append(player)
+        # generate ID and check for doubles
+        while True:
+            id_ = random.randint(1000000000, 9999999999)
+            if id_ not in self.generated_IDs:
+                player.id = id_
+                self.generated_IDs.append(id_)
+                break 
+        
     
     def check_dci(self, dci):
         for player in self.players:
@@ -125,6 +106,7 @@ class tournament():
             # 129 - 226 = 8
             # 227 - 409 = 9
             #      410+ = 10
+            self.no_of_players = len(self.players)
             if self.no_of_players <= 128:
                 self.no_of_rounds = ceil(log(self.no_of_players,2))
             elif self.no_of_players <= 226:
@@ -376,15 +358,6 @@ class tournament():
                 print(player.name, player.points_total)
         else:
             self.sort_players(by='oppscore')
-            '''
-            print('\nStandings by Rank')
-            print('Tournament-ID: {}'.format(self.tournament_id))
-            print('Event Date: {}'.format(self.date))
-            print('Event Information: {}'.format(self.event_information))
-            print('\nOpponents Match Win Percent: OMW%')
-            print('Game Win Percent: GW%')
-            print('Opponents Game Win Percent: OGW%')'''
-
             string = '\nStandings by Rank'
             string += '\nTournament-ID: {}'.format(self.tournament_id)
             string += '\nEvent Date: {}'.format(self.date)
@@ -402,17 +375,16 @@ class tournament():
                 rank += 1
             t.align = 'l'
             #t.align['Points'] = 'r'
-            #print(t)
             string += str(t)
             return string
     
     def print_pairings(self):
         t = PrettyTable(['Table', 'Player', 'DCI', 'Opponent', 'DCI ', 'Points'])
-        print('\nPairings by Name')
-        print('Tournament-ID: {}'.format(self.tournament_id))
-        print('Event Date: {}'.format(self.date))
-        print('Event Information: {}'.format(self.event_information))
-        print('\nRound {}\n'.format(self.round_no))
+        string = '\nPairings by Name'
+        string += '\nTournament-ID: {}'.format(self.tournament_id)
+        string += '\nEvent Date: {}'.format(self.date)
+        string += '\nEvent Information: {}'.format(self.event_information)
+        string += '\n\nRound {}\n'.format(self.round_no)
         self.sort_players('name')
         for player in self.players:
             table = player.table_number
@@ -425,15 +397,17 @@ class tournament():
             t.add_row([table, pl, pl_dci, opp, opp_dci, points])
         t.align = 'l'
         #t.border = False
-        print(t)
+        string += str(t)
+        string += '\n'
+        return string
         
         
     def print_seatings(self, seatings=False):
         t = PrettyTable(['Table', 'Player', 'DCI', 'Opponent', 'DCI '])
-        print('\nSeatings by Name')
-        print('Tournament-ID: {}'.format(self.tournament_id))
-        print('Event Date: {}'.format(self.date))
-        print('Event Information: {}'.format(self.event_information))
+        string = '\nSeatings by Name'
+        string += '\nTournament-ID: {}'.format(self.tournament_id)
+        string += '\nEvent Date: {}'.format(self.date)
+        string += '\nEvent Information: {}\n'.format(self.event_information)
         self.sort_players('name')
         seats = self.players[:]
         table = 1
@@ -447,7 +421,9 @@ class tournament():
             t.add_row([table, pl1.name, pl1.dci, '-', '-'])
         t.align = 'l'
         #t.border = False
-        print(t)
+        string += str(t)
+        string += '\n'
+        return string
         
             
     def calculate_points(self):

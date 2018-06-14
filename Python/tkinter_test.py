@@ -1,5 +1,5 @@
 import tkinter as tk
-from tkinter import messagebox, filedialog
+from tkinter import messagebox, filedialog, scrolledtext
 import json
 import os
 
@@ -32,13 +32,14 @@ class Window(tk.Frame):
 
         edit = tk.Menu(menu, tearoff=0)
         edit.add_command(label="Add Players", command=self.addPlayer)
+        edit.add_command(label="Edit Players", command=self.editPlayer)
         edit.add_command(label="Remove Players")
         edit.add_command(label="Edit Results")
         menu.add_cascade(label="Edit", menu=edit)
         
         tools = tk.Menu(menu, tearoff=0)
-        tools.add_command(label="Show Players", command=self.showPlayers)
-        tools.add_command(label="Start next Round")
+        tools.add_command(label="Start Tournament", command=self.startTournament)
+        tools.add_command(label="Start next Round", command=self.createPairings)
         tools.add_command(label="Enter Result")
         tools.add_command(label="Show Standings", command=self.showStandings)
         menu.add_cascade(label="Tools", menu=tools)
@@ -54,16 +55,11 @@ class Window(tk.Frame):
         helpmenu.add_command(label="About...", command=self.versionInfo)
         menu.add_cascade(label="Help", menu=helpmenu)
         
-        self.txt = tk.Text(self)
+        self.txt = scrolledtext.ScrolledText(self)
         # disable text editing by user
         self.txt.bind("<Key>", lambda e: "break")
         self.txt.pack(fill=tk.BOTH, expand=1)
-        self.txt.insert(tk.END, self.last_text)
-        
-        # create a Scrollbar and associate it with txt
-        scrollb = tk.Scrollbar(self.txt, command=self.txt.yview)
-        scrollb.pack(side=tk.RIGHT, fill=tk.Y)
-        self.txt['yscrollcommand'] = scrollb.set
+
         
     def onOpen(self):
         ftypes = [('Supported text files', '*.txt'), ('All files', '*')]
@@ -75,7 +71,11 @@ class Window(tk.Frame):
                 self.event = swiss.tournament
                 self.event = self.event.load_tournament2(self, fl)
                 text = fl
-                text = 'Successfully loaded ' + text
+                if self.event:
+                    text = 'Successfully loaded ' + text
+                    self.println(text)
+                else:
+                    text = 'failed to load ' + text 
                 self.println(text)
             except:
                 text = fl
@@ -124,7 +124,6 @@ class Window(tk.Frame):
         
     def saveWindow(self):
         data = {"last_opened": self.last_opened,
-                "last_text": self.txt.get('1.0', tk.END)
                 }
         with open('data.json', 'w') as f:
             json.dump(data, f)
@@ -135,10 +134,8 @@ class Window(tk.Frame):
             with open('data.json') as f:
                 data = json.load(f)
             self.last_opened = data["last_opened"]
-            self.last_text = data["last_text"]
         except:
             self.last_opened = ''
-            self.last_text = ''
     
     
     def newEvent(self):
@@ -156,13 +153,25 @@ class Window(tk.Frame):
             return
         self.popup_addPlayer = popupWindow(self, self.master)
         self.master.wait_window(self.popup_addPlayer.top)
+    
+    
+    def editPlayer(self):
+        if not self.event:
+            messagebox.showinfo("Error", "No tournament started!")
+            return
+        if len(self.event.players) == 0:
+            messagebox.showinfo("Error", "Add Players first!")
+            return
+        self.popup_editPlayer = editPlayerWindow(self, self.master)
+        self.master.wait_window(self.popup_editPlayer.top)
+        
         
     def showPlayers(self):
         if self.event:
             self.event.sort_players('name')
             self.println('\nPlayers in this tournament:')
             for player in self.event.players:
-                self.println(player.name)
+                self.println(player.name + ' ' + player.dci)
         else:
             self.println('No event found.')
             
@@ -174,12 +183,31 @@ class Window(tk.Frame):
         else:
             self.println('No event found.')
             
+    
+    def startTournament(self):
+        if self.event:
+            text = self.event.print_seatings()
+            self.println(text)
+            self.event.calculate_rounds()           
+        else:
+            self.println('No event found.')
+            
+            
+    def createPairings(self):
+        if self.event:
+            self.event.new_round()
+            text = self.event.print_pairings()
+            self.println(text)
+        else:
+            self.println('No event found.')        
+            
+            
     def println(self, text):
         self.txt.insert(tk.END, text + '\n')
 
 
-class popupWindow(object):
-    def __init__(self, window, master):
+class popupWindow():
+    def __init__(self, window, master, mode='add'):
         self.window = window
         self.master = master
         self.top = top = tk.Toplevel(master)
@@ -195,10 +223,25 @@ class popupWindow(object):
         self.l3.pack()
         self.e3 = tk.Entry(top)
         self.e3.pack()
-        self.b = tk.Button(top,text='Add Player',command=self.cleanup)
+        if mode == 'add':
+            self.b = tk.Button(top,text='Add Player',command=self.cleanupAdd)
+        elif mode == 'edit':
+            firstname = ''
+            self.id = None
+            for player in self.window.event.players:
+                #print(str(self.window.popup_editPlayer.player), player.name)
+                if self.window.popup_editPlayer.name == player.name:
+                    lastname, firstname = player.name.split(', ')
+                    dci = player.dci
+                    self.id = player.id
+            self.e1.insert(0, firstname)
+            self.e2.insert(0, lastname)
+            self.e3.insert(0, dci)
+            self.b = tk.Button(top,text='Save changes',command=self.cleanupEdit)
         self.b.pack()
         
-    def cleanup(self):
+        
+    def cleanupAdd(self):
         self.name = self.e2.get().strip() + ', ' + self.e1.get().strip()
         self.dci = self.e3.get().strip()
         if not self.window.event.check_dci(self.dci):
@@ -208,12 +251,43 @@ class popupWindow(object):
             messagebox.showinfo("Error", "Please enter a name!")
             return
         else:
-            string = 'Added: ' + self.name + '; DCI ' + self.dci + '\n'
-            self.window.event.players.append(swiss.Player(self.name, self.dci))
+            string = 'Added: ' + self.name + '; DCI ' + self.dci
+            self.window.event.add_player(self.name, self.dci)
             self.window.println(string)
             self.top.destroy()
-
-
+    
+    def cleanupEdit(self):
+        if self.id:
+            self.name = self.e2.get().strip() + ', ' + self.e1.get().strip()
+            self.dci = self.e3.get().strip()
+            for player in self.window.event.players:
+                if player.id == self.id:
+                    player.name = self.name
+                    player.dci = self.dci
+        self.top.destroy()
+                
+        
+        
+class editPlayerWindow():
+    def __init__(self, window, master):
+        self.window = window
+        self.master = master
+        self.top = top = tk.Toplevel(master)
+        self.player = tk.StringVar(top)
+        choices = [str(player.name) for player in self.window.event.players]
+        print(choices)
+        default = str(self.window.event.players[0].name)
+        popupMenu = tk.ttk.OptionMenu(top, self.player, default, *choices)
+        tk.Label(top, text="Choose a Player to edit:").pack()
+        popupMenu.pack()
+        button = tk.Button(top, text="Edit", command=self.getPlayer)
+        button.pack()
+        
+    def getPlayer(self):
+        self.name = self.player.get()
+        self.popup = popupWindow(self.window, self.master, mode='edit')
+        
+        
         
 root = tk.Tk()
 root.geometry("800x600")
