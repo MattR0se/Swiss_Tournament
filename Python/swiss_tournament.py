@@ -13,7 +13,7 @@ to do list:
 import random
 import pickle
 import datetime
-from os import path, makedirs
+#from os import path, makedirs
 from math import log, ceil
 from prettytable import PrettyTable
 import numpy as np
@@ -51,16 +51,15 @@ class tournament():
         self.elimination_players = []
         self.dropouts = []
         self.results_entered = []
-        self.no_of_players = 0
+        self.pairings = {}
         self.no_of_pairings = 0
         self.no_of_rounds = 0
         self.round_no = 0
-        self.starting_table = 1
+        self.starting_table = 15
         self.bye = Player('BYE', 0)
-        self.event_name = 'mytournament'
-        self.event_information = 'Frontier PPTQ @Spielhölle Musterstadt'
-
-        
+        self.event_name = ''
+        self.event_information = ''
+   
         # initial setting
         self.dci_required = True
         self.generated_IDs = []
@@ -82,6 +81,7 @@ class tournament():
                 player.id = id_
                 self.generated_IDs.append(id_)
                 break 
+        return player
         
     
     def check_dci(self, dci):
@@ -92,80 +92,73 @@ class tournament():
 
     
     def calculate_rounds(self):
-        #self.recommended_rounds = input('\nUse recommended number of rounds? y/n:   ')
-        self.recommended_rounds = 'y'
-        if self.recommended_rounds == 'n':
-            self.no_of_rounds =  int(input('Enter number of rounds:   '))
+        # set the no. of rounds based on number of players
+        #     5 - 8 = 3
+        #    9 - 16 = 4
+        #   17 - 32 = 5
+        #   33 - 64 = 6
+        #  65 - 128 = 7
+        # 129 - 226 = 8
+        # 227 - 409 = 9
+        #      410+ = 10
+        if len(self.players) <= 128:
+            self.no_of_rounds = ceil(log(len(self.players) ,2))
+        elif len(self.players) <= 226:
+            self.no_of_rounds = 8
+        elif len(self.players) <= 409:
+            self.no_of_rounds = 9
         else:
-            # set the no. of rounds based on number of players
-            #     5 - 8 = 3
-            #    9 - 16 = 4
-            #   17 - 32 = 5
-            #   33 - 64 = 6
-            #  65 - 128 = 7
-            # 129 - 226 = 8
-            # 227 - 409 = 9
-            #      410+ = 10
-            self.no_of_players = len(self.players)
-            if self.no_of_players <= 128:
-                self.no_of_rounds = ceil(log(self.no_of_players,2))
-            elif self.no_of_players <= 226:
-                self.no_of_rounds = 8
-            elif self.no_of_players <= 409:
-                self.no_of_rounds = 9
-            else:
-                self.no_of_rounds = 10
+            self.no_of_rounds = 10
     
     
     def new_round(self):
-        self.no_of_pairings = self.no_of_players // 2
+        self.no_of_pairings = len(self.players) // 2
         self.round_no += 1
         if self.round_no == 1:
+            self.results_entered = []
             # first round, completely random
-            self.pairings = []
+            self.pairings = {}
             self.players_temp = []
-            table = 0
+            table = self.starting_table
             random.shuffle(self.players)
             while len(self.players) > 1:
                 player1 = self.players.pop(0)
                 player2 = self.players.pop(0)
 
-                self.pairings.append([player1, player2])
-                player1.table_number = table + self.starting_table
-                player2.table_number = table + self.starting_table
+                self.pairings[table] = [player1, player2]
+                player1.table_number = table
+                player2.table_number = table
                 self.players_temp.append(player1)
                 self.players_temp.append(player2)
                 table += 1
             if len(self.players) == 1:
                 player1 = self.players.pop(0)
                 player2 = self.bye
-                self.pairings.append([player1, player2])
-                self.enter_result(-1, (2, 0, 0))
+                # table 0 is always the bye
+                self.pairings[0] = [player1, player2]
+                self.enter_result(0, (2, 0, 0))
                 player1.table_number = 0
                 self.players_temp.append(player1)
-                
-                
+                             
             self.players = self.players_temp
-            for pair in self.pairings:
-                pair[0].opponents.append(pair[1])
-                pair[1].opponents.append(pair[0])   
-            self.results_entered = []
-        
+            self.add_opponents()      
+      
         elif self.round_no == self.no_of_rounds:
             # last round, sort by opponent score
             if len(self.results_entered) < self.no_of_pairings:
                 print('--- WARNING: Results are still missing! ---')
                 self.round_no -= 1
-                return
+                return False
             else:
+                self.results_entered = []
                 self.calculate_oppscores()
                 self.print_standings(True)
                 attempts = 0
                 while True:
-                    self.pairings = []
+                    self.pairings = {}
                     self.players_temp = []
                     self.sort_players(by='oppscore')
-                    table = 0
+                    table = self.starting_table
                     while len(self.players) > 1:
                         player1 = self.players.pop(0)
                         offset = 0
@@ -175,20 +168,19 @@ class tournament():
                             player2 = self.players.pop(offset)
                         except:
                             player2 = self.players.pop(0)
-                        self.pairings.append([player1, player2])
-                        player1.table_number = table + self.starting_table
-                        player2.table_number = table + self.starting_table
+                        self.pairings[table] = [player1, player2]
+                        player1.table_number = table
+                        player2.table_number = table
                         self.players_temp.append(player1)
                         self.players_temp.append(player2)
                         table += 1
                     if len(self.players) == 1:
                         player1 = self.players.pop(0)
                         player2 = self.bye
-                        self.pairings.append([player1, player2])
+                        self.pairings[0] = [player1, player2]
                         player1.table_number = 0
                         self.players_temp.append(player1)
-                        
-                        
+                                
                     self.players = self.players_temp
                     # conditions that have to be met:
                     # players can't be paired against each other twice 
@@ -196,34 +188,32 @@ class tournament():
                     # players can't receive more than one bye, if possible
                     if not self.check_doubles() or attempts >= 100:
                         # give the player a bye
-                        self.enter_result(-1, (2, 0, 0))
+                        if player2 == self.bye:
+                            self.enter_result(0, (2, 0, 0))
                         break
                     else:
                         attempts += 1
                 
-                for pair in self.pairings:
-                    pair[0].opponents.append(pair[1])
-                    pair[1].opponents.append(pair[0])             
-                
-                self.results_entered = []
-        
+                self.add_opponents()                 
+                       
         elif self.round_no > self.no_of_rounds:
             print('--- WARNING: This was the last round! ---')
             self.round_no -= 1
-            return
+            return False
         
         else:
             # all other rounds
             if len(self.results_entered) < self.no_of_pairings:
                 print('--- WARNING: Results are still missing! ---')
                 self.round_no -= 1
-                return
+                return False
             else:
+                self.results_entered = []
                 attempts = 0
                 while True:
-                    self.pairings = []
+                    self.pairings = {}
                     self.players_temp = []
-                    table = 0
+                    table = self.starting_table
                     random.shuffle(self.players)
                     self.sort_players()
                     while len(self.players) > 1:
@@ -235,17 +225,17 @@ class tournament():
                             player2 = self.players.pop(offset)
                         except:
                             player2 = self.players.pop(0)
-                        self.pairings.append([player1, player2])
+                        self.pairings[table] = [player1, player2]
                              
-                        player1.table_number = table + self.starting_table
-                        player2.table_number = table + self.starting_table
+                        player1.table_number = table
+                        player2.table_number = table
                         self.players_temp.append(player1)
                         self.players_temp.append(player2)
                         table += 1
                     if len(self.players) == 1:
                         player1 = self.players.pop(0)
                         player2 = self.bye
-                        self.pairings.append([player1, player2])
+                        self.pairings[0] = [player1, player2]
                         player1.table_number = 0
                         self.players_temp.append(player1)
                                     
@@ -257,32 +247,45 @@ class tournament():
                     # players can't receive more than one bye, if possible
                     if not self.check_doubles() or attempts >= 100:
                         # give the player a bye
-                        self.enter_result(-1, (2, 0, 0))
+                        if player2 == self.bye:
+                            self.enter_result(0, (2, 0, 0))
                         break
                     else:
                         attempts += 1
                 
-                for pair in self.pairings:
-                    pair[0].opponents.append(pair[1])
-                    pair[1].opponents.append(pair[0])                           
-                self.results_entered = []
-
-                
+                self.add_opponents()                          
+           
         if self.pairings:
+            # FOR DEBUGGING; COULD BE DELETED AFTERWARDS
             strings = []
-            for pair in self.pairings:
-                pl1 = pair[0]
-                pl2 = pair[1]
+            for key in self.pairings:
+                pl1 = self.pairings[key][0]
+                pl2 = self.pairings[key][1]
                 string = '{0}: {1} VS. {2}: {3}'.format(pl1.name, pl1.points_total, 
                           pl2.name, pl2.points_total)
                 strings.append(string)
             self.rounds.append(strings)
-              
         
+        # function new_round() returns true if pairings were made
+        return True
+              
+    
+    def add_opponents(self):
+        # after parings are found, add each player to the other player's 
+        # opponents list
+        for key in self.pairings:
+            pl1 = self.pairings[key][0]
+            pl2 = self.pairings[key][1]
+            pl1.opponents.append(pl2)
+            pl2.opponents.append(pl1)
+    
+    
     def check_doubles(self):
-         for pairing in self.pairings:
-             if list_in_list([pairing[1]], pairing[0].opponents):
-                 return pairing[0]
+         for key in self.pairings:
+            pl1 = self.pairings[key][0]
+            pl2 = self.pairings[key][1]
+            if list_in_list([pl2], pl1.opponents):
+                 return pl1
          return None
           
                 
@@ -294,21 +297,19 @@ class tournament():
         else:
             if not self.elimination_players:
                 self.elimination_players = self.players[:number]
-            self.pairings = []
+            self.pairings = {}
             self.players_temp = []
-            table = 0
+            table = self.starting_table
             while len(self.elimination_players) > 1:
                 player1 = self.elimination_players.pop(0)
                 player2 = self.elimination_players.pop(-1)
-                self.pairings.append([player1, player2])
+                self.pairings[table] = [player1, player2]
                 self.players_temp.append(player1)
                 self.players_temp.append(player2)
-                player1.table_number = table + self.starting_table
-                player2.table_number = table + self.starting_table
+                player1.table_number = table
+                player2.table_number = table
                 table += 1
-            for pair in self.pairings:
-                pair[0].opponents.append(pair[1])
-                pair[1].opponents.append(pair[0])
+            self.add_opponents()
             self.results_entered = []
             self.elimination_players = self.players_temp
                
@@ -326,6 +327,7 @@ class tournament():
         if swiss:
             self.pairings[table][0].games_won += player1_win
             self.pairings[table][1].games_won += player2_win
+            #print('Result entered: ', table, self.pairings[table][0].name,self.pairings[table][1].name)
             self.pairings[table][0].games_drawn += draw
             self.pairings[table][1].games_drawn += draw
             self.pairings[table][0].games_played += (player1_win + player2_win 
@@ -474,38 +476,15 @@ class tournament():
             if player.name == name:
                 self.dropouts.append(player)
                 self.players.remove(player)
-                print('\n{} dropped from the tournament'.format(name))
-                return
-        print('\n--- WARNING: Player already dropped or does not exist.')
-        
-
-    def save_tournament(self):
-        # set up the saves directory
-        dir_ = path.dirname('__file__')
-        saves_dir = path.join(dir_, 'tournament save files')
-        if not path.exists(saves_dir):
-            makedirs(saves_dir)
-        
-        filename = 'tournament_' + self.tournament_id + '.txt'
-        # save everything
-        with open(path.join(saves_dir, filename), 'wb') as file:
-            pickle.dump(self, file)
+                return player
+           
             
     def save_tournament_as(self, filename):
         with open(filename, 'wb') as file:
             pickle.dump(self, file)
-            
-    def load_tournament(self, filename):
-        try:
-            dir_ = path.dirname('__file__')
-            saves_dir = path.join(dir_, 'tournament save files')
-            with open(path.join(saves_dir, filename), 'rb') as file:
-                return pickle.load(file)
-        except:
-            print('error loading the file')
-            return
     
-    def load_tournament2(self, filename):
+    
+    def load_tournament(self, filename):
         try:
             with open(filename, 'rb') as file:
                 return pickle.load(file)
@@ -551,9 +530,10 @@ def simulate_round(tournament):
     # check for doubles
     for player in tournament.players:
         for i in range(len(player.opponents) - 1):
-            if player.opponents[i + 1] == player.opponents[i] and player.opponents[i + 1].name != 'BYE':
+            if (player.opponents[i + 1] == player.opponents[i] and 
+                player.opponents[i + 1].name != 'BYE'):
                 tournament.doubles.append(player.name)    
-    tournament.print_pairings()
+    print(tournament.print_pairings())
     
     random_results = [
            (2, 0, 0),
@@ -571,32 +551,32 @@ def simulate_round(tournament):
            (1, 1, 1)
            ]
     for i in range(tournament.no_of_pairings):
+        table = i + tournament.starting_table
         result = random.choice(random_results)
-        tournament.enter_result(i, result)
+        tournament.enter_result(table, result)
     tournament.calculate_points()
 
 
 def simulate_tournament(no_of_players):
     event = tournament()
     event.dci_required = False
-    event.no_of_players = no_of_players
     event.players = generate_random_players(no_of_players)
 
-    event.print_seatings()
+    print(event.print_seatings())
 
     event.calculate_rounds()  
     for i in range(event.no_of_rounds):
         simulate_round(event)
         
     event.calculate_oppscores() 
-    event.print_standings(True)    
+    print(event.print_standings(True))    
     
     return event
 
 
 def test(runs):
     for i in range(runs):
-        event = simulate_tournament(9)
-        event.save_tournament()  
+        event = simulate_tournament(19)
+        #event.save_tournament()  
         
 #test(1)
