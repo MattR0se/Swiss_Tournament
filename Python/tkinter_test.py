@@ -8,6 +8,12 @@ import swiss_tournament as swiss
 
 version = '0.3'
 
+'''
+MEMO: Programm anders struktiurieren: Tabs als Objekte
+mit funktion def: update() und alles als tk variablen, die 
+mit update() neu gesetzt werden, z.b. Spielernamen, Event Info etc
+'''
+
 def error(number):
     error_dict = {
             0: 'ERROR: No event found.',
@@ -44,14 +50,8 @@ class Window(tk.Frame):
         self.filename = None
         self.last_opened = None
         self.page_info = None
+        self.page_players = None
         
-        #declare some tk variables
-        self.var_event_name = tk.StringVar()
-        self.var_event_info = tk.StringVar()
-        self.var_event_format = tk.StringVar()
-        self.var_no_of_players = tk.StringVar()
-        self.var_no_of_rounds = tk.StringVar()
-
         self.init_window()
         with open('temp.txt', 'w') as f:
             self.tempfile = f
@@ -84,7 +84,7 @@ class Window(tk.Frame):
                                   state='disabled')
         self.editmenu.add_command(label='Edit Players', command=self.editPlayer, 
                                   state='disabled')
-        self.editmenu.add_command(label='Remove Players', 
+        self.editmenu.add_command(label='Drop Players', 
                                   command=self.underConstruction, 
                                   state='disabled')
         self.editmenu.add_command(label='Edit Results', 
@@ -157,48 +157,88 @@ class Window(tk.Frame):
         #adds info tab and labels
         self.page_info = ttk.Frame(self.nb)
         self.nb.add(self.page_info, text='Event Information')
-        # configure the grid
-        col_count, row_count = self.page_info.grid_size()
-        for col in range(col_count):
-            self.page_info.grid_columnconfigure(col, minsize=20)    
-        for row in range(row_count):
-            self.page_info.grid_rowconfigure(row, minsize=20)
+        
+        # update the info tab             
+        self.updateInfo()
         
         row = 0
-        self.var_event_name.set(self.event.event_name)
-        tk.Label(self.page_info, text='Event Name: ').grid(row=row, column=0, 
+        for key, value in self.event_info.items():
+            tk.Label(self.page_info, text=key).grid(row=row, column=0, 
                 sticky=tk.W)
-        tk.Label(self.page_info, textvariable=self.var_event_name).grid(row=row, 
-                column=1, sticky=tk.W) 
-        row += 1
+            tk.Label(self.page_info, textvariable=value[1]).grid(row=row, 
+                    column=1, sticky=tk.W, padx=12)
+            row += 1
         
-        self.var_event_info.set(self.event.event_information)
-        tk.Label(self.page_info, text='Event Information: ').grid(row=row, 
-                column=0, sticky=tk.W)
-        tk.Label(self.page_info, textvariable=self.var_event_info).grid(
-                row=row, column=1, sticky=tk.W)
-        row += 1
+            
+    def updateInfo(self):
+        # das geht vielleicht weniger kompliziert?
+        # key ist der string, der angezeigt wird in der ersten Spalte
+        # value[0] ist der wert der vom event abgefragt wird
+        # value[1] sind StringVars damit tkinter deren Wert in echtzeit updatet
+        # das könnte man
+        # evtl noch vereinfachen indem diese Werte hier in der App 
+        # direkt gespeichert werden und gar nicht mehr im tournament Programm
+        # dann könnte man z.B: direkt sagen
+        # self.event_info['Event Name'].set('Beispielturnier')
+        self.event_info = {
+           'Event Name': [self.event.event_name, tk.StringVar()],
+           'Event Information': [self.event.event_information, tk.StringVar()],
+           'Event Format': [self.event.format, tk.StringVar()],
+           'Number of Players': [len(self.event.players), tk.IntVar()],
+           'Number of Rounds': [self.event.no_of_rounds, tk.IntVar()],
+           'Current Round': [self.event.round_no, tk.IntVar()],
+           'Dropouts': [len(self.event.dropouts), tk.IntVar()]
+           }
         
-        self.var_event_format.set(self.event.format)
-        tk.Label(self.page_info, text='Event Format: ').grid(row=row, column=0, 
-                sticky=tk.W)
-        tk.Label(self.page_info, textvariable=self.var_event_format).grid(row=row, 
-                column=1, sticky=tk.W) 
-        row += 1
-        
-        self.var_no_of_players.set(len(self.event.players))
-        tk.Label(self.page_info, text='Number of players: ').grid(row=row, 
-                column=0, sticky=tk.W)
-        tk.Label(self.page_info, textvariable=self.var_no_of_players).grid(row=row, 
-                column=1, sticky=tk.W)
-        row += 1
-        
-        self.var_no_of_rounds.set(self.event.no_of_rounds)
-        tk.Label(self.page_info, text='Number of rounds: ').grid(row=row, column=0, 
-                sticky=tk.W)
-        tk.Label(self.page_info, textvariable=self.var_no_of_rounds).grid(row=row, 
-                column=1, sticky=tk.W)
+        for key, value in self.event_info.items():
+            value[1].set(value[0])
+            print(value[1].get())
     
+    
+    def addPlayerTab(self):
+        if len(self.event.players) == 0:
+            # if no event or players exist, return
+            return
+        # Adds player tab to the notebook
+        if not self.page_players:
+            self.page_players = ttk.Frame(self.nb)
+            self.nb.add(self.page_players, text='Players')
+        # clear the previous labels
+        for widget in self.page_players.winfo_children():
+            widget.destroy()
+
+        tk.Label(self.page_players, text='Name').grid(row=0, column=0, 
+                                                      sticky=tk.W)
+        tk.Label(self.page_players, text='DCI').grid(row=0, column=1, 
+                                                     sticky=tk.W, padx=16)
+        row = 1
+        self.event.sort_players('name')
+        for player in self.event.players:
+            l1 = tk.Label(self.page_players, text=player.name)
+            l1.grid(row=row, column=0, sticky=tk.W)
+            l2 = tk.Label(self.page_players, text=str(player.dci))
+            l2.grid(row=row, column=1, sticky = tk.W, padx=16)
+            b1 = tk.Button(self.page_players, text='EDIT', 
+                           command=self.editPlayer)
+            b1.grid(row=row, column=2, padx=4, pady=1)
+            b2 = tk.Button(self.page_players, text='DROP', 
+                           command=lambda pl=player: self.drop(pl))
+            b2.grid(row=row, column=3, padx=4, pady=1)
+            row += 1
+        
+     
+    def drop(self, player):
+        txt = 'Do you really want to drop {}?'.format(player.name)
+        msg = messagebox.askyesno('Warning', txt)
+        if msg:
+            pl = self.event.drop_player(player.name)
+            print(self.event_info['Dropouts'])
+            if pl:
+                self.println('{} dropped from the tournament.'.format(player.name))
+            else:
+                self.println('{} already dropped.'.format(player.name))
+        self.checkOptions()
+        
     
     def onOpen(self):
         ftypes = [('Supported text files', '*.txt'), ('All files', '*')]
@@ -381,6 +421,8 @@ class Window(tk.Frame):
 
     def checkOptions(self):
         if self.event:
+            self.addPlayerTab()
+            self.addInfoTab()
             self.filemenu.entryconfig(1, state="normal") # Save Event
             self.editmenu.entryconfig(0, state="normal") # Add Player
             self.editmenu.entryconfig(4, state="normal") # Edit event info
@@ -462,7 +504,8 @@ class popupPlayers():
             return
         else:
             pl = self.window.event.add_player(self.name, self.dci)
-            self.window.var_no_of_players.set(len(self.window.event.players))
+            self.window.event_info['Number of Players'][1].set(
+                    len(self.window.event.players))
             if self.dci == '':
                 messagebox.showinfo('Warning', error(6))
                 pl.dci = pl.id
@@ -530,9 +573,7 @@ class popupInfo():
             self.window.event.event_name = name
             self.window.event.event_information = info
             self.window.event.format = self.format.get()
-            self.window.var_event_name.set(name)
-            self.window.var_event_info.set(info)
-            self.window.var_event_format.set(self.format.get())
+            self.window.updateInfo()
             string = 'Updated Event Information'
             self.window.println(string)
             self.top.destroy()

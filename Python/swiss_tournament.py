@@ -154,7 +154,7 @@ class tournament():
             else:
                 self.results_entered = []
                 self.calculate_oppscores()
-                self.print_standings(True)
+                # print(self.print_standings())
                 attempts = 0
                 while True:
                     self.pairings = {}
